@@ -309,6 +309,34 @@ describe('Client', () => {
           done();
         });
     });
+
+    it('should accept a link', done => {
+      const linkMock = jest.genMockFn(() => Observable.of({ data: {} }));
+      client = new Client({
+        link: new ApolloLink(linkMock),
+      });
+
+      const queryObject = {
+        query: `{
+        todos(id: 1) {
+          id
+          name
+        }
+      }`,
+        variables: {
+          id: 1,
+        },
+      };
+
+      client.executeQuery(queryObject).then(() => {
+        expect(linkMock).toHaveBeenCalledWith({
+          ...queryObject,
+          operationName: '',
+          extensions: {},
+        });
+        done();
+      });
+    });
   });
 
   describe('executeMutation', () => {
@@ -407,33 +435,31 @@ describe('Client', () => {
         });
     });
 
-    describe('link', () => {
-      it('should accept a link', done => {
-        const linkMock = jest.genMockFn(() => Observable.of({ data: {} }));
-        client = new Client({
-          link: new ApolloLink(linkMock),
-        });
+    it('should accept a link', done => {
+      const linkMock = jest.genMockFn(() => Observable.of({ data: {} }));
+      client = new Client({
+        link: new ApolloLink(linkMock),
+      });
 
-        const queryObject = {
-          query: `{
-          todos(id: 1) {
-            id
-            name
-          }
-        }`,
-          variables: {
-            id: 1,
-          },
-        };
+      const queryObject = {
+        query: `{
+        todos(id: 1) {
+          id
+          name
+        }
+      }`,
+        variables: {
+          id: 1,
+        },
+      };
 
-        client.executeQuery(queryObject).then(() => {
-          expect(linkMock).toHaveBeenCalledWith({
-            ...queryObject,
-            operationName: '',
-            extensions: {},
-          });
-          done();
+      client.executeMutation(queryObject).then(() => {
+        expect(linkMock).toHaveBeenCalledWith({
+          ...queryObject,
+          operationName: '',
+          extensions: {},
         });
+        done();
       });
     });
   });

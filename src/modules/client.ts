@@ -69,6 +69,7 @@ export default class Client {
     this.cache = opts.cache || defaultCache(this.store);
     this.subscriptions = {};
     // Bind methods
+    this.execute = this.execute.bind(this);
     this.executeQuery = this.executeQuery.bind(this);
     this.executeMutation = this.executeMutation.bind(this);
     this.updateSubscribers = this.updateSubscribers.bind(this);
@@ -187,25 +188,7 @@ export default class Client {
 
   executeMutation(mutationObject: IMutation): Promise<object[]> {
     return new Promise<object[]>((resolve, reject) => {
-      const { query, variables } = mutationObject;
-      // Convert POST body to string
-      const body = JSON.stringify({
-        query,
-        variables,
-      });
-
-      const fetchOptions =
-        typeof this.fetchOptions === 'function'
-          ? this.fetchOptions()
-          : this.fetchOptions;
-      // Call mutation
-      fetch(this.url, {
-        body,
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-        ...fetchOptions,
-      })
-        .then(res => res.json())
+      this.execute(mutationObject)
         .then(response => {
           if (response.data) {
             // Retrieve typenames from response data
