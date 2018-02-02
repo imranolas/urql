@@ -3,6 +3,7 @@ import uuid from 'uuid';
 import { ICache, IClientOptions, IMutation, IQuery } from '../interfaces/index';
 import { gankTypeNamesFromResponse } from '../modules/typenames';
 import { hashString } from './hash';
+import { execute } from 'apollo-link';
 
 // Response from executeQuery call
 export interface IQueryResponse {
@@ -55,11 +56,14 @@ export default class Client {
       throw new Error('Please provide configuration object');
     }
     // Set option/internal defaults
-    if (!opts.url) {
-      throw new Error('Please provide a URL for your GraphQL API');
+    if (!opts.url && !opts.link) {
+      throw new Error(
+        'Please provide a URL for your GraphQL API or configure an Apollo Link'
+      );
     }
 
     this.url = opts.url;
+    this.link = opts.link;
     this.fetchOptions = opts.fetchOptions || {};
     this.store = opts.initialCache || {};
     this.cache = opts.cache || defaultCache(this.store);
@@ -106,20 +110,49 @@ export default class Client {
     });
   }
 
+  execute(queryObject) {
+    // Create query POST body
+
+    if (!this.link) {
+      const fetchOptions =
+        typeof this.fetchOptions === 'function'
+          ? this.fetchOptions()
+          : this.fetchOptions;
+      // Fetch data
+      return fetch(this.url, {
+        body: this.serializeQuery(queryObject),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        ...fetchOptions,
+      }).then(res => res.json());
+    } else {
+      return new Promise((resolve, reject) => {
+        execute(this.link, queryObject).subscribe({
+          error: reject,
+          next: resolve,
+          complete: resolve,
+        });
+      });
+    }
+  }
+
+  serializeQuery({
+    query,
+    variables,
+  }: {
+    query: any;
+    variables?: any;
+  }): string {
+    return JSON.stringify({ query, variables });
+  }
+
   executeQuery(
     queryObject: IQuery,
     skipCache: boolean
   ): Promise<IQueryResponse> {
     return new Promise<IQueryResponse>((resolve, reject) => {
-      const { query, variables } = queryObject;
-      // Create query POST body
-      const body = JSON.stringify({
-        query,
-        variables,
-      });
-
       // Create hash from serialized body
-      const hash = hashString(body);
+      const hash = hashString(this.serializeQuery(queryObject));
 
       // Check cache for hash
       this.cache.read(hash).then(data => {
@@ -127,18 +160,7 @@ export default class Client {
           const typeNames = gankTypeNamesFromResponse(data);
           resolve({ data, typeNames });
         } else {
-          const fetchOptions =
-            typeof this.fetchOptions === 'function'
-              ? this.fetchOptions()
-              : this.fetchOptions;
-          // Fetch data
-          fetch(this.url, {
-            body,
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST',
-            ...fetchOptions,
-          })
-            .then(res => res.json())
+          this.execute(queryObject)
             .then(response => {
               if (response.data) {
                 // Grab typenames from response data
